@@ -1,0 +1,47 @@
+Homework 2 - Proxy Server
+Class: 4510 Computer Networks
+Date: 4/26/2016
+Files: proxyServer.cpp, Makefile, README
+
+Command Lines:
+./proxy <port>
+telnet localhost <port> 
+Trying 127.0.0.1... 
+Connected to localhost.localdomain (127.0.0.1). 
+Escape character is '^]'. 
+GET http://www.cnn.com/ HTTP/1.0 
+
+Description:
+This program operates as a HTTP proxy server.
+It handles conncurrent requests via a thread pool of 30 threads
+and uses a lock to prevent race conditions. 
+upon making a connection with the client, it reads the request.
+This request is stored in a char array of size 2048. 
+This request is then validated as it is parsed. If a request is 
+invalid (not in absolute URI Form), the parsing function will 
+return a invalid port of -1 and alter the output message to a
+500 error. If a request is valid, then the function will return 
+the port number and the reformated message (relative URL).
+If the port is -1, then the error is sent to the client.
+If the port is valid, then the reformated request is sent to the
+remote server. The response recieved from the server is then sent
+to the client.  
+
+Group Members:
+
+Elizabeth Phippen
+- Request Validation
+- Request Parsing
+- Request Reformatting
+- Testing and Debugging
+
+Josh Lin
+- Multi-threading server
+- SendMessageStream function
+- Server Connection
+- Testing and Debugging
+
+Joe
+- Client Connection
+- Error and Response Sendback
+- Testing and Debugging
