@@ -160,10 +160,13 @@ string HostProcessing (string clientMsg) {
 	unsigned short hostPort = 80;
 	string tmpMsg = clientMsg;
 	string hostName = "";
+	string absURI = "";
 
 	//parse host name
-	hostName.append(tmpMsg, tmpMsg.find("://")+3, 
+	absURI.append(tmpMsg, tmpMsg.find("://")+3, 
 				  (tmpMsg.find(" HTTP")-1)-(tmpMsg.find("://")+3));
+	hostName.append(absURI,0,absURI.find('/'));
+	cout << hostName << endl;
 
 	// Get Host IP Address
 	host = gethostbyname(hostName.c_str());
@@ -192,12 +195,15 @@ string HostProcessing (string clientMsg) {
 	}
 
 	//change message to relative URI
+	//GET relativeURI HTTP/1.0 
+	//Host: host
 	string newClientMsg = "GET ";
 	newClientMsg.append(clientMsg, clientMsg.find(hostName)+hostName.length(),
 						clientMsg.find(" HTTP") - clientMsg.find(hostName)+hostName.length());
-
+	newClientMsg = newClientMsg + "HTTP/1.0\n" + "Host: " + hostName;
+	cout << newClientMsg << endl;
 	// Forward Message
-	SendMessageStream(hostSock, newClientMsg);
+	SendMessageStream(hostSock, clientMsg);
 
 	// Receive Response
 	responseMsg =  GetMessageStream(hostSock, true);
