@@ -47,9 +47,9 @@ bool validRequest(string message){
 	if(message.find("GET ") != 0){
 		return false;
 	}
-	// must have HTTP/1.0\r\n at end
-	if(message.find(" HTTP/1.0\r\n")+11 != message.length() ||
-		message.find(" HTTP/1.1\r\n")+11 != message.length()){
+	// must have HTTP/1.0 at end
+	if(message.find(" HTTP/1.0")+11 == string::npos ||
+		message.find(" HTTP/1.1")+11 == string::npos){
 		return false;
 	}
 	return true;
@@ -75,6 +75,10 @@ string getRelativeURI(string message, string host){
 	
 	relURI.append(message, message.find(host)+host.length(), 
 				message.find(" HTTP") - message.find(host)+host.length());
+	// no uri present in message
+	if(relURI.find('/') == string::npos){
+		relURI = '/';
+	}
 	
 	return relURI;
 }
