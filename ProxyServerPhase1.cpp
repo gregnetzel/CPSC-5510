@@ -97,29 +97,51 @@ int main(int argNum, char* argValues[])
 
 	// get client request
 	// client_Message = recv_message(sockfd);
+	
 	clientRequest = recv_message(newSock_fdesc);
-
+	
 	if(!validRequest(clientRequest)){
 		// send 500 error to client
 		send_message(newSock_fdesc, "Error 500", 9);
-	}else{
+	}
+	else{
 		string host = getHost(clientRequest);
 		string relURI = getRelativeURI(clientRequest, host);
 		string serverRequest = formatRequest(host, relURI);
+		string defPort = "80";
 
 		// send request to server
 		memset(&host_info, 0, sizeof host_info);
 		host_info.ai_family = AF_UNSPEC;
 		host_info.ai_socktype = SOCK_STREAM;
-		if ((rv = getaddrinfo(host.c_str(), argValues[1], &host_info, &host_info_list)) != 0){
+		
+		if ((rv = getaddrinfo(host.c_str(), defPort.c_str(), &host_info, &host_info_list)) != 0){
 			fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 			return 1;
 		}
-		socket_bind = create_and_bind_socket(host_info_list, server_fdesc, yes);
+		
+		for(socket_bind = host_info_list; socket_bind != NULL; socket_bind = socket_bind->ai_next){
+			if((server_fdesc = socket(socket_bind->ai_family, socket_bind->ai_socktype, socket_bind->ai_protocol)) == -1){
+				perror("socket");
+				continue;
+			}
+			if (connect(server_fdesc, socket_bind->ai_addr, socket_bind->ai_addrlen) == -1){
+				perror("connect");
+				close(server_fdesc);
+				continue;
+			}
+			break;
+		}
+		if (socket_bind == NULL){
+			fprintf(stderr,"Could not connect\n");
+			exit(1);
+		}
 		freeaddrinfo(host_info_list);
 		send_message(server_fdesc, serverRequest, serverRequest.length());
-		// get response
+		cout << "message sent" << endl;
+		// get response		
 		string serverResponse = recv_message(server_fdesc);
+		cout << "Server Response: " << serverResponse << endl;
 		close(server_fdesc);
 		// send response to client
 		send_message(newSock_fdesc, serverResponse, serverResponse.length());
@@ -133,7 +155,8 @@ int main(int argNum, char* argValues[])
 // GET AbsoluteURI HTTP/1.0
 bool validRequest(string message){
 	// can only process GET messages
-	if(message.find("GET ") != 0){
+	cout << message << endl;
+	if(message.find("GET ") == string::npos){
 		return false;
 	}
 	// must have HTTP/1.0 at end
@@ -174,7 +197,7 @@ string getRelativeURI(string message, string host){
 
 // formats server request
 string formatRequest(string host, string relURI){
-	string response = "GET " + relURI + " HTTP\r\n" +
+	string response = "GET " + relURI + " HTTP/1.0\r\n" +
 		"Host: " + host + "\r\n\r\n";
 	return response;
 }
@@ -192,20 +215,17 @@ void *get_in_addr(struct sockaddr *sa){
 struct addrinfo* create_and_bind_socket(struct addrinfo *servinfo_list, int& sockfd, int& yes){
 	struct addrinfo* servinfo;
 	// loop through all the results and bind to the first we can
-	for(servinfo = servinfo_list; servinfo != NULL;
-			servinfo = servinfo->ai_next){
-		if ((sockfd = socket(servinfo->ai_family, servinfo->ai_socktype,
-						servinfo->ai_protocol)) == -1){
+	for(servinfo = servinfo_list; servinfo != NULL; servinfo = servinfo->ai_next){
+		if ((sockfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol)) == -1){
 			perror("server: socket");
 			continue;
 		}
-		if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
-						sizeof(int)) == -1){
+		if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1){
 			perror("setsockopt");
 			exit(1);
 		}
 		if (bind(sockfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1){
-				close(sockfd);
+			close(sockfd);
 			perror("server: bind");
 			continue;
 		}
@@ -239,9 +259,14 @@ string recv_message(int sock_fd){
   int num_bytes_recv = 0;
   int checkbytes = 0;
   string clientMessage = "";
-
   while((num_bytes_recv = recv(sock_fd, buf, MAXDATASIZE-1, 0)) > 0){
-    checkbytes += num_bytes_recv;
+	  if (num_bytes_recv > 2){
+		  checkbytes += num_bytes_recv;
+		  buf[num_bytes_recv] = '\0';
+		  clientMessage.append(buf);
+	  }
+	  else 				//just end line characters means last message was blank line
+		  break;
   }
 
   if (num_bytes_recv == -1){
@@ -249,9 +274,9 @@ string recv_message(int sock_fd){
       exit(1);
   }
 
-  buf[checkbytes] = '\0';
+  //buf[checkbytes] = '\0';
 
-  clientMessage = buf;
+  //clientMessage = buf;
 
   return clientMessage;
 }
