@@ -110,10 +110,6 @@ int main(int argNum, char* argValues[])
 		string serverRequest = formatRequest(host, relURI);
 		string defPort = "80";
 		
-		cout << "host: " << host << endl;
-		cout << "relative: " << relURI << endl;
-		cout << "request: " << serverRequest << endl;
-		
 		// send request to server
 		memset(&host_info, 0, sizeof host_info);
 		host_info.ai_family = AF_UNSPEC;
@@ -145,7 +141,6 @@ int main(int argNum, char* argValues[])
 		send_message(server_fdesc, serverRequest, serverRequest.length());
 		// get response		
 		string serverResponse = recv_message(server_fdesc);
-		cout << "Server Response: " << serverResponse << endl;
 		close(server_fdesc);
 		// send response to client
 		send_message(newSock_fdesc, serverResponse, serverResponse.length());
@@ -202,7 +197,7 @@ string getRelativeURI(string message, string host){
 
 // formats server request
 string formatRequest(string host, string relURI){
-	string response = "GET " + relURI + " HTTP/1.1\r\n" +
+	string response = "GET " + relURI + " HTTP/1.0\r\n" +
 		"Host: " + host + ":80" + "\r\n\r\n";
 	return response;
 }
