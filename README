@@ -5,26 +5,70 @@ Files: proxyServer.cpp, Makefile, README
 
 Command Lines:
 ./proxy <port>
-telnet localhost <port> 
-Trying 127.0.0.1... 
-Connected to localhost.localdomain (127.0.0.1). 
-Escape character is '^]'. 
-GET http://www.cnn.com/ HTTP/1.0 
+telnet localhost <port>
+Trying 127.0.0.1...
+Connected to localhost.localdomain (127.0.0.1).
+Escape character is '^]'.
+GET http://www.cnn.com/ HTTP/1.0
 
 Description:
 This program operates as a HTTP proxy server.
-upon making a connection with the client, it reads the request. 
-This request is then validated. If a request is invalid 
-not in absolute URI Form), the ValidRequest function will 
+Upon making a connection with the client, it reads the request.
+This request is then validated. If a request is invalid
+(not in absolute URI Form), the ValidRequest function will
 return false which triggers a 500 error message to the client
-If a request is valid, then the host and reformated message 
-(relative URL) will be found and used to contact the server. 
-The response recieved from the server is then sent to the client.  
+If a request is valid, then the host and reformatted message
+(relative URL) will be found and used to contact the server.
+The response received from the server is then sent to the client.
 
 Group Members:
+
+Greg Netzel
+-connect to requested remote host
+-send HTTP request from client to remote server
+-send response message from remote server to client
 
 Elizabeth Phippen
 - Request Validation
 - Request Parsing
 - Request Reformatting
 
+Brandi Weekes
+-establish socket connection (setup address/port, create socket, bind socket)
+-recv data function from client/server
+-send data function to client/server
+
+
+Design Choices:
+
+1) compile program from command line (port# is port proxy listens on):
+      ./proxy <port#>
+2) checks arguments from compile; if not 2, exits
+3) learns proxy server address and port
+4) prepare socket: creates and binds
+5) listen for connections
+6) when receives client request:
+      a) checks client message for "GET" request
+      b) if not a "GET" sends 500 error message to client
+      c) if "GET" request, parses the request for host and relative uri
+      d) constructs properly formatted server request from host and relative uri
+      e) learns remote server host address and port
+            -if not know, sends "Host Unknown" error to client and closes connection
+      f) prepares socket for remote server host: creates and binds
+      g) sends server request message ("GET", see d above) to remote server host
+      h) receives GET response from remote server host and sends message to client
+      i) closes connection to client
+      j) client terminal window displays message from proxy server
+
+
+Strengths(+) & Weaknesses(-):
+
++capable of checking client request to validate properly-formatted HTTP request
++constructs properly-formatted HTTP request client from client if needed
++protects client's identity; proxy identity is sent to remote server host,
+    not client's, since proxy is sending request on client's behalf
+
+-hard coded for HTTP/1.0
+-phase is not multithreaded
+-cache not implemented, so will have to connect to remote server each time for
+   repeated HTTP requests
