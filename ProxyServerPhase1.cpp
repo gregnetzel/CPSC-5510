@@ -84,7 +84,7 @@ int main(int argNum, char* argValues[])
 		exit(1);
 	}
 
-	printf("server: waiting for connections...\n");
+	//printf("server: waiting for connections...\n");
 
 	//accept
 	sin_size = sizeof clientRequest_addr;
@@ -93,11 +93,9 @@ int main(int argNum, char* argValues[])
 		perror("accept");
 		return 1;
 	}
-	print_success_client_IP(clientRequest_addr);
+	//print_success_client_IP(clientRequest_addr);
 
 	// get client request
-	// client_Message = recv_message(sockfd);
-	
 	clientRequest = recv_message(newSock_fdesc);
 	
 	if(!validRequest(clientRequest)){
@@ -154,7 +152,6 @@ int main(int argNum, char* argValues[])
 // GET AbsoluteURI HTTP/1.0
 bool validRequest(string message){
 	// can only process GET messages
-	cout << message << endl;
 	if(message.find("GET ") == string::npos){
 		return false;
 	}
@@ -198,7 +195,8 @@ string getRelativeURI(string message, string host){
 // formats server request
 string formatRequest(string host, string relURI){
 	string response = "GET " + relURI + " HTTP/1.0\r\n" +
-		"Host: " + host + ":80" + "\r\n\r\n";
+		"Host: " + host + ":80" + "\r\n" +
+		"Connection: close" + "\r\n\r\n";
 	return response;
 }
 
