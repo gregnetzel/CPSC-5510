@@ -171,10 +171,15 @@ string getHost(string message){
 
 	// www.host.com/relURI
 	temp.append(message, message.find("://")+3,
-				message.find(" HTTP") - message.find("://")+3);
-	// www.host.com
-	host.append(temp, 0, temp.find('/'));
+				message.find(" HTTP") - (message.find("://")+3));
 
+	// www.host.com
+	if(temp.find('/') != string::npos){
+		host.append(temp, 0, temp.find('/'));
+	}else{
+		host = temp;
+	}
+	
 	return host;
 }
 
