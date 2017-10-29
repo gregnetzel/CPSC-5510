@@ -183,15 +183,16 @@ string getHost(string message){
 }
 
 string getRelativeURI(string message, string host){
-	string relURI = "";
+	string relURI;
 
-	relURI.append(message, message.find(host)+host.length(),
-				message.find(" HTTP") - message.find(host)+host.length());
-	// no uri present in message
-	if(relURI.find('/') == string::npos){
+	int start = message.find(host);
+	int len = message.find("HTTP") - 1 - start- host.length();
+	relURI = message.substr(start+host.length(), len);
+	
+	if(relURI.find('/') == string::npos){// no uri present in message
 		relURI = '/';
 	}
-
+	
 	return relURI;
 }
 
@@ -255,30 +256,26 @@ void print_success_client_IP(struct sockaddr_storage &client_addr){
 
 //uses a loop to receive message from client, returns a message as string
 string recv_message(int sock_fd){
-  char buf[MAXDATASIZE];
-  int num_bytes_recv = 0;
-  int checkbytes = 0;
-  string clientMessage = "";
-  while((num_bytes_recv = recv(sock_fd, buf, MAXDATASIZE-1, 0)) > 0){
-	  if (num_bytes_recv > 2){
-		  checkbytes += num_bytes_recv;
-		  buf[num_bytes_recv] = '\0';
-		  clientMessage.append(buf);
-	  }
-	  else 				//just end line characters means last message was blank line
-		  break;
-  }
+	char buf[MAXDATASIZE];
+	int num_bytes_recv = 0;
+	int checkbytes = 0;
+	string clientMessage = "";
+	while((num_bytes_recv = recv(sock_fd, buf, MAXDATASIZE-1, 0)) > 0){
+		if (num_bytes_recv > 2){
+			checkbytes += num_bytes_recv;
+			buf[num_bytes_recv] = '\0';
+			clientMessage.append(buf);
+		}
+		else 				//just end line characters means last message was blank line
+			break;
+	}
 
-  if (num_bytes_recv == -1){
-      perror("recv");
-      exit(1);
-  }
-
-  //buf[checkbytes] = '\0';
-
-  //clientMessage = buf;
-
-  return clientMessage;
+	if (num_bytes_recv == -1){
+		perror("recv");
+		exit(1);
+	}
+  
+	return clientMessage;
 }
 
 //sends message to client
