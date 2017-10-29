@@ -1,3 +1,7 @@
+// Homework 2 - Proxy Server
+// Class: 5510 Computer Networks
+// Greg Netzel, Elizabeth Phippen, Brandi Weekes
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -25,6 +29,7 @@ string getRelativeURI(string message, string host);
 string formatRequest(string host, string relURI);
 void *get_in_addr(struct sockaddr *sa);
 struct addrinfo* create_and_bind_socket(struct addrinfo *servinfo_list, int& sockfd, int& yes);
+struct addrinfo* create_socket_and_connect(struct addrinfo *proxyinfo_list, int& sockfd);
 void sigchld_handler(int s);
 void print_success_client_IP(struct sockaddr_storage &client_addr);
 string recv_message(int sock_fd);
@@ -34,7 +39,7 @@ void send_message(int newfd, string msg, int msgLength);
 int main(int argNum, char* argValues[])
 {
 	int host_sock_fdesc, newSock_fdesc, server_fdesc;  // listen on sock_fd, new connection on new_fd, server fd
-	struct addrinfo host_info, *host_info_list, *socket_bind;
+	struct addrinfo host_info, *host_info_list, *socket_bind, *socket_bind_remote;
 	struct sockaddr_storage clientRequest_addr; // connector's address information
 	socklen_t sin_size;
 	struct sigaction sa;
@@ -97,7 +102,7 @@ int main(int argNum, char* argValues[])
 
 	// get client request
 	clientRequest = recv_message(newSock_fdesc);
-	
+
 	if(!validRequest(clientRequest)){
 		// send 500 error to client
 		send_message(newSock_fdesc, "Error 500", 9);
@@ -107,42 +112,47 @@ int main(int argNum, char* argValues[])
 		string relURI = getRelativeURI(clientRequest, host);
 		string serverRequest = formatRequest(host, relURI);
 		string defPort = "80";
-		
+
 		// send request to server
 		memset(&host_info, 0, sizeof host_info);
 		host_info.ai_family = AF_UNSPEC;
 		host_info.ai_socktype = SOCK_STREAM;
-		
+
 		if ((rv = getaddrinfo(host.c_str(), defPort.c_str(), &host_info, &host_info_list)) != 0){
 			fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 			send_message(newSock_fdesc, "Unknown Host\n", 13);
 			return 1;
 		}
-		
-		for(socket_bind = host_info_list; socket_bind != NULL; socket_bind = socket_bind->ai_next){
-			if((server_fdesc = socket(socket_bind->ai_family, socket_bind->ai_socktype, socket_bind->ai_protocol)) == -1){
-				perror("socket");
-				continue;
-			}
-			if (connect(server_fdesc, socket_bind->ai_addr, socket_bind->ai_addrlen) == -1){
-				perror("connect");
-				close(server_fdesc);
-				continue;
-			}
-			break;
-		}
-		if (socket_bind == NULL){
+
+		// for(socket_bind = host_info_list; socket_bind != NULL; socket_bind = socket_bind->ai_next){
+		// 	if((server_fdesc = socket(socket_bind->ai_family, socket_bind->ai_socktype, socket_bind->ai_protocol)) == -1){
+		// 		perror("socket");
+		// 		continue;
+		// 	}
+		// 	if (connect(server_fdesc, socket_bind->ai_addr, socket_bind->ai_addrlen) == -1){
+		// 		perror("connect");
+		// 		close(server_fdesc);
+		// 		continue;
+		// 	}
+		// 	break;
+		// }
+
+
+		socket_bind_remote = create_socket_and_connect(host_info_list, server_fdesc);
+
+
+		if (socket_bind_remote == NULL){
 			fprintf(stderr,"Could not connect\n");
 			exit(1);
 		}
 		freeaddrinfo(host_info_list);
 		send_message(server_fdesc, serverRequest, serverRequest.length());
-		// get response		
+		// get response
 		string serverResponse = recv_message(server_fdesc);
 		close(server_fdesc);
 		// send response to client
 		send_message(newSock_fdesc, serverResponse, serverResponse.length());
-		close(newSock_fdesc);		
+		close(newSock_fdesc);
 	}
 	close(host_sock_fdesc);
 	return 0;
@@ -179,7 +189,7 @@ string getHost(string message){
 	}else{
 		host = temp;
 	}
-	
+
 	return host;
 }
 
@@ -189,11 +199,11 @@ string getRelativeURI(string message, string host){
 	int start = message.find(host);
 	int len = message.find("HTTP") - 1 - start- host.length();
 	relURI = message.substr(start+host.length(), len);
-	
+
 	if(relURI.find('/') == string::npos){// no uri present in message
 		relURI = '/';
 	}
-	
+
 	return relURI;
 }
 
@@ -220,7 +230,7 @@ struct addrinfo* create_and_bind_socket(struct addrinfo *servinfo_list, int& soc
 	// loop through all the results and bind to the first we can
 	for(servinfo = servinfo_list; servinfo != NULL; servinfo = servinfo->ai_next){
 		if ((sockfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol)) == -1){
-			perror("server: socket");
+			perror("proxy as server: socket");
 			continue;
 		}
 		if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1){
@@ -229,12 +239,33 @@ struct addrinfo* create_and_bind_socket(struct addrinfo *servinfo_list, int& soc
 		}
 		if (bind(sockfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1){
 			close(sockfd);
-			perror("server: bind");
+			perror("proxy as server: bind");
 			continue;
 		}
 		break;
 	}
 	return servinfo;
+}
+
+//proxy creates and socket and connects to remote server
+struct addrinfo* create_socket_and_connect(struct addrinfo *proxyinfo_list, int& sockfd)
+{
+	struct addrinfo* proxyinfo;
+	for(proxyinfo = proxyinfo_list; proxyinfo != NULL; proxyinfo = proxyinfo->ai_next)
+	{
+		if ((sockfd = socket(proxyinfo->ai_family, proxyinfo->ai_socktype, proxyinfo->ai_protocol)) == -1)
+		{
+			perror("proxy as client: socket");
+			continue;
+		}
+		if (connect(sockfd, proxyinfo->ai_addr, proxyinfo->ai_addrlen) == -1){
+			perror("proxy as client: connect");
+			close(sockfd);
+			continue;
+		}
+		break;
+	}
+	return proxyinfo;
 }
 
 void sigchld_handler(int s){
@@ -276,7 +307,7 @@ string recv_message(int sock_fd){
 		perror("recv");
 		exit(1);
 	}
-  
+
 	return clientMessage;
 }
 
