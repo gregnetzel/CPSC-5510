@@ -18,8 +18,8 @@ This request is then validated. If a request is invalid
 not in absolute URI Form), the ValidRequest function will 
 return false which triggers a 500 error message to the client
 If a request is valid, then the host and reformated message 
-(relative URL) will be used to contact the server. The response 
-recieved from the server is then sent to the client.  
+(relative URL) will be found and used to contact the server. 
+The response recieved from the server is then sent to the client.  
 
 Group Members:
 
