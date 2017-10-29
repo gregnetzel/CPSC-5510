@@ -109,7 +109,11 @@ int main(int argNum, char* argValues[])
 		string relURI = getRelativeURI(clientRequest, host);
 		string serverRequest = formatRequest(host, relURI);
 		string defPort = "80";
-
+		
+		cout << "host: " << host << endl;
+		cout << "relative: " << relURI << endl;
+		cout << "request: " << serverRequest << endl;
+		
 		// send request to server
 		memset(&host_info, 0, sizeof host_info);
 		host_info.ai_family = AF_UNSPEC;
@@ -117,6 +121,7 @@ int main(int argNum, char* argValues[])
 		
 		if ((rv = getaddrinfo(host.c_str(), defPort.c_str(), &host_info, &host_info_list)) != 0){
 			fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+			send_message(newSock_fdesc, "Unknown Host\n", 13);
 			return 1;
 		}
 		
@@ -138,7 +143,6 @@ int main(int argNum, char* argValues[])
 		}
 		freeaddrinfo(host_info_list);
 		send_message(server_fdesc, serverRequest, serverRequest.length());
-		cout << "message sent" << endl;
 		// get response		
 		string serverResponse = recv_message(server_fdesc);
 		cout << "Server Response: " << serverResponse << endl;
@@ -198,8 +202,8 @@ string getRelativeURI(string message, string host){
 
 // formats server request
 string formatRequest(string host, string relURI){
-	string response = "GET " + relURI + " HTTP/1.0\r\n" +
-		"Host: " + host + "\r\n\r\n";
+	string response = "GET " + relURI + " HTTP/1.1\r\n" +
+		"Host: " + host + ":80" + "\r\n\r\n";
 	return response;
 }
 
@@ -281,13 +285,9 @@ string recv_message(int sock_fd){
 //sends message to client
 void send_message(int newfd, string msg, int msgLength){
   int num_bytes_send = 0;
-  int checkbytes = msgLength;
+  char buf[msgLength];
+  memcpy(buf, msg.c_str(), msgLength);
 
-  while(checkbytes > num_bytes_send)  {
-    num_bytes_send = send(newfd, &msg, msgLength, 0);
-    checkbytes -= num_bytes_send;
-  }
-
-  if (num_bytes_send < 0)
-      perror("send");
+  while(num_bytes_send != msgLength)
+	  num_bytes_send = send(newfd, &buf, msgLength, 0);
 }
