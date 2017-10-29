@@ -124,36 +124,27 @@ int main(int argNum, char* argValues[])
 			return 1;
 		}
 
-		// for(socket_bind = host_info_list; socket_bind != NULL; socket_bind = socket_bind->ai_next){
-		// 	if((server_fdesc = socket(socket_bind->ai_family, socket_bind->ai_socktype, socket_bind->ai_protocol)) == -1){
-		// 		perror("socket");
-		// 		continue;
-		// 	}
-		// 	if (connect(server_fdesc, socket_bind->ai_addr, socket_bind->ai_addrlen) == -1){
-		// 		perror("connect");
-		// 		close(server_fdesc);
-		// 		continue;
-		// 	}
-		// 	break;
-		// }
-
-
+		//create socket and connect to remote server
 		socket_bind_remote = create_socket_and_connect(host_info_list, server_fdesc);
-
 
 		if (socket_bind_remote == NULL){
 			fprintf(stderr,"Could not connect\n");
 			exit(1);
 		}
 		freeaddrinfo(host_info_list);
+
+		//send message to remote server
 		send_message(server_fdesc, serverRequest, serverRequest.length());
+
 		// get response
 		string serverResponse = recv_message(server_fdesc);
 		close(server_fdesc);
+
 		// send response to client
 		send_message(newSock_fdesc, serverResponse, serverResponse.length());
 		close(newSock_fdesc);
 	}
+	
 	close(host_sock_fdesc);
 	return 0;
 }
