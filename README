@@ -32,11 +32,13 @@ Elizabeth Phippen
 - Request Validation
 - Request Parsing
 - Request Reformatting
+- multithreading
 
 Brandi Weekes
 -establish socket connection (setup address/port, create socket, bind socket)
 -recv data function from client/server
 -send data function to client/server
+-multithreading
 
 
 Design Choices:
