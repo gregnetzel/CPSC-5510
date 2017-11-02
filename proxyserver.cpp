@@ -94,18 +94,20 @@ int main(int argNum, char* argValues[])
 	//printf("server: waiting for connections...\n");
 
 	//accept
-	sin_size = sizeof clientRequest_addr;
-	newSock_fdesc = accept(host_sock_fdesc, (struct sockaddr *)&clientRequest_addr, &sin_size);
-	if (newSock_fdesc == -1){
-		perror("accept");
-		return 1;
+	while(1)
+	{
+		sin_size = sizeof clientRequest_addr;
+		newSock_fdesc = accept(host_sock_fdesc, (struct sockaddr *)&clientRequest_addr, &sin_size);
+		if (newSock_fdesc == -1){
+			perror("accept");
+			return 1;
+		}
+		//print_success_client_IP(clientRequest_addr);
+
+		runRequest(newSock_fdesc, server_fdesc, host_info, host_info_list);
 	}
-	//print_success_client_IP(clientRequest_addr);
 
-	runRequest(newSock_fdesc, server_fdesc, host_info, host_info_list);
-
-
-	close(host_sock_fdesc);
+	close(host_sock_fdesc); 
 	return 0;
 }
 
@@ -157,7 +159,7 @@ void runRequest(int newSock_fdesc, int server_fdesc,
 
 		// send response to client
 		send_message(newSock_fdesc, serverResponse, serverResponse.length());
-		close(newSock_fdesc);
+		close(newSock_fdesc); //thread close socket
 	}
 }
 
