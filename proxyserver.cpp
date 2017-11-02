@@ -23,8 +23,7 @@ using namespace std;
 #define BACKLOG 30     // how many pending connections queue will hold
 
 
-void runRequest(int newSock_fdesc, int server_fdesc,
-	struct addrinfo host_info, struct addrinfo *host_info_list );
+void* runRequest(void* threadInfo);
 bool validRequest(string message);
 string getHost(string message);
 string getRelativeURI(string message, string host);
@@ -36,7 +35,12 @@ void sigchld_handler(int s);
 void print_success_client_IP(struct sockaddr_storage &client_addr);
 string recv_message(int sock_fd);
 void send_message(int newfd, string msg, int msgLength);
-
+struct info{
+	int newSock_fdesc; 
+	int server_fdesc;
+	struct addrinfo host_info;
+	struct addrinfo *host_info_list;
+};
 
 int main(int argNum, char* argValues[])
 {
@@ -48,6 +52,7 @@ int main(int argNum, char* argValues[])
 	int yes=1;
 	char s[INET6_ADDRSTRLEN];
 	int rv;
+	struct info threadInfo;
 
 
 	if (argNum != 2){
@@ -104,16 +109,36 @@ int main(int argNum, char* argValues[])
 		}
 		//print_success_client_IP(clientRequest_addr);
 
-		runRequest(newSock_fdesc, server_fdesc, host_info, host_info_list);
+		threadInfo.newSock_fdesc = newSock_fdesc;
+		threadInfo.server_fdesc = server_fdesc;
+		threadInfo.host_info = host_info;
+		threadInfo.host_info_list = host_info_list;
+		
+		pthread_t tid;
+		int threadStatus = pthread_create(&tid, NULL, runRequest, (void*)&threadInfo);
+		if (threadStatus != 0){
+		  // Failed to create child thread
+		  cerr << "Failed to create child process." << endl;
+		  close(newSock_fdesc);
+		  pthread_exit(NULL);
+		}
 	}
 
 	close(host_sock_fdesc); 
 	return 0;
 }
 
-void runRequest(int newSock_fdesc, int server_fdesc,
-	struct addrinfo host_info, struct addrinfo *host_info_list ){
+void* runRequest( void* threadInfo ){
 
+	info* temp = (info*) threadInfo;
+	int newSock_fdesc = temp -> newSock_fdesc;
+	int server_fdesc = temp -> server_fdesc;
+	struct addrinfo host_info = temp -> host_info;
+	struct addrinfo *host_info_list = temp -> host_info_list;
+
+	// Detach Thread to ensure that resources are deallocated on return.
+	pthread_detach(pthread_self());
+	
 	// get client request
 	string clientRequest = "";
 	clientRequest = recv_message(newSock_fdesc);
@@ -138,7 +163,7 @@ void runRequest(int newSock_fdesc, int server_fdesc,
 		if ((rv = getaddrinfo(host.c_str(), defPort.c_str(), &host_info, &host_info_list)) != 0){
 			fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 			send_message(newSock_fdesc, "Unknown Host\n", 13);
-			return;
+			return NULL;
 		}
 
 		//create socket and connect to remote server
@@ -161,6 +186,9 @@ void runRequest(int newSock_fdesc, int server_fdesc,
 		send_message(newSock_fdesc, serverResponse, serverResponse.length());
 		close(newSock_fdesc); //thread close socket
 	}
+	
+	// Quit thread
+	pthread_exit(NULL);
 }
 
 
