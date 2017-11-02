@@ -23,6 +23,8 @@ using namespace std;
 #define BACKLOG 30     // how many pending connections queue will hold
 
 
+void runRequest(int newSock_fdesc, int server_fdesc,
+	struct addrinfo host_info, struct addrinfo *host_info_list );
 bool validRequest(string message);
 string getHost(string message);
 string getRelativeURI(string message, string host);
@@ -39,14 +41,14 @@ void send_message(int newfd, string msg, int msgLength);
 int main(int argNum, char* argValues[])
 {
 	int host_sock_fdesc, newSock_fdesc, server_fdesc;  // listen on sock_fd, new connection on new_fd, server fd
-	struct addrinfo host_info, *host_info_list, *socket_bind, *socket_bind_remote;
+	struct addrinfo host_info, *host_info_list, *socket_bind; //*socket_bind_remote;
 	struct sockaddr_storage clientRequest_addr; // connector's address information
 	socklen_t sin_size;
 	struct sigaction sa;
 	int yes=1;
 	char s[INET6_ADDRSTRLEN];
 	int rv;
-	
+
 
 	if (argNum != 2){
 		// Incorrect number of arguments
@@ -90,7 +92,7 @@ int main(int argNum, char* argValues[])
 	}
 
 	//printf("server: waiting for connections...\n");
-	
+
 	//accept
 	sin_size = sizeof clientRequest_addr;
 	newSock_fdesc = accept(host_sock_fdesc, (struct sockaddr *)&clientRequest_addr, &sin_size);
@@ -101,18 +103,20 @@ int main(int argNum, char* argValues[])
 	//print_success_client_IP(clientRequest_addr);
 
 	runRequest(newSock_fdesc, server_fdesc, host_info, host_info_list);
-	
-	
+
+
 	close(host_sock_fdesc);
 	return 0;
 }
 
 void runRequest(int newSock_fdesc, int server_fdesc,
 	struct addrinfo host_info, struct addrinfo *host_info_list ){
-		
+
 	// get client request
 	string clientRequest = "";
 	clientRequest = recv_message(newSock_fdesc);
+	struct addrinfo *socket_bind_remote;
+	int rv;
 
 	if(!validRequest(clientRequest)){
 		// send 500 error to client
@@ -132,7 +136,7 @@ void runRequest(int newSock_fdesc, int server_fdesc,
 		if ((rv = getaddrinfo(host.c_str(), defPort.c_str(), &host_info, &host_info_list)) != 0){
 			fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 			send_message(newSock_fdesc, "Unknown Host\n", 13);
-			return 1;
+			return;
 		}
 
 		//create socket and connect to remote server
