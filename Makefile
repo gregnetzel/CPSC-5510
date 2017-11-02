@@ -1,2 +1,2 @@
 proxyMake: proxyserver.cpp
-	g++ -o proxy proxyserver.cpp
+	g++ -pthread -o proxy proxyserver.cpp
