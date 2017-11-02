@@ -46,7 +46,7 @@ int main(int argNum, char* argValues[])
 	int yes=1;
 	char s[INET6_ADDRSTRLEN];
 	int rv;
-	string clientRequest = "";
+	
 
 	if (argNum != 2){
 		// Incorrect number of arguments
@@ -90,7 +90,7 @@ int main(int argNum, char* argValues[])
 	}
 
 	//printf("server: waiting for connections...\n");
-
+	
 	//accept
 	sin_size = sizeof clientRequest_addr;
 	newSock_fdesc = accept(host_sock_fdesc, (struct sockaddr *)&clientRequest_addr, &sin_size);
@@ -100,7 +100,18 @@ int main(int argNum, char* argValues[])
 	}
 	//print_success_client_IP(clientRequest_addr);
 
+	runRequest(newSock_fdesc, server_fdesc, host_info, host_info_list);
+	
+	
+	close(host_sock_fdesc);
+	return 0;
+}
+
+void runRequest(int newSock_fdesc, int server_fdesc,
+	struct addrinfo host_info, struct addrinfo *host_info_list ){
+		
 	// get client request
+	string clientRequest = "";
 	clientRequest = recv_message(newSock_fdesc);
 
 	if(!validRequest(clientRequest)){
@@ -144,10 +155,8 @@ int main(int argNum, char* argValues[])
 		send_message(newSock_fdesc, serverResponse, serverResponse.length());
 		close(newSock_fdesc);
 	}
-	
-	close(host_sock_fdesc);
-	return 0;
 }
+
 
 // check for valid request
 // GET AbsoluteURI HTTP/1.0
