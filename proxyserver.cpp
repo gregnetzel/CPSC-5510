@@ -145,6 +145,8 @@ void* runRequest( void* threadInfo ){
 	struct addrinfo *socket_bind_remote;
 	int rv;
 
+	cout << "Request: " << clientRequest << endl << endl;
+	
 	if(!validRequest(clientRequest)){
 		// send 500 error to client
 		send_message(newSock_fdesc, "Error 500", 9);
@@ -181,7 +183,9 @@ void* runRequest( void* threadInfo ){
 		// get response
 		string serverResponse = recv_message(server_fdesc);
 		close(server_fdesc);
-
+		
+		cout << endl << endl << "Message: " << endl << serverResponse << endl << endl;
+		
 		// send response to client
 		send_message(newSock_fdesc, serverResponse, serverResponse.length());
 		close(newSock_fdesc); //thread close socket
