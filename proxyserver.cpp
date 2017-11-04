@@ -339,6 +339,11 @@ string recv_message(int sock_fd){
 		}
 		else 				//just end line characters means last message was blank line
 			break;
+		if (clientMessage[clientMessage.length()-4] == '\r'
+		&& clientMessage[clientMessage.length()-3] == '\n'
+		&& clientMessage[clientMessage.length()-2] == '\r'
+		&& clientMessage[clientMessage.length()-1] == '\n') 
+			break;
 	}
 
 	if (num_bytes_recv == -1){
@@ -351,6 +356,7 @@ string recv_message(int sock_fd){
 
 //sends message to client
 void send_message(int newfd, string msg, int msgLength){
+  msg.append("\r\n\r\n");
   int num_bytes_send = 0;
   char buf[msgLength];
   memcpy(buf, msg.c_str(), msgLength);
