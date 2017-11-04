@@ -237,6 +237,7 @@ string getOtherFields(string message){
 	}
 	else
 		return "\r\n\r\n";
+	return ret;
 }
 
 string getRelativeURI(string message, string host){
@@ -256,6 +257,7 @@ string getRelativeURI(string message, string host){
 // formats server request
 string formatRequest(string host, string relURI, string otherLines){
 	string response = "GET " + relURI + " HTTP/1.0\r\n" +
+		"Host: " + host + ":80" + "\r\n" + "\r\n\r\n";//otherLines;
 	return response;
 }
 
