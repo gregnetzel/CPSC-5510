@@ -27,7 +27,8 @@ void* runRequest(void* threadInfo);
 bool validRequest(string message);
 string getHost(string message);
 string getRelativeURI(string message, string host);
-string formatRequest(string host, string relURI);
+string getOtherFields(string message);
+string formatRequest(string host, string relURI, string otherLines);
 void *get_in_addr(struct sockaddr *sa);
 struct addrinfo* create_and_bind_socket(struct addrinfo *servinfo_list, int& sockfd, int& yes);
 struct addrinfo* create_socket_and_connect(struct addrinfo *proxyinfo_list, int& sockfd);
@@ -144,8 +145,6 @@ void* runRequest( void* threadInfo ){
 	clientRequest = recv_message(newSock_fdesc);
 	struct addrinfo *socket_bind_remote;
 	int rv;
-
-	cout << "Request: " << clientRequest << endl << endl;
 	
 	if(!validRequest(clientRequest)){
 		// send 500 error to client
@@ -154,9 +153,10 @@ void* runRequest( void* threadInfo ){
 	else{
 		string host = getHost(clientRequest);
 		string relURI = getRelativeURI(clientRequest, host);
-		string serverRequest = formatRequest(host, relURI);
+		string serverRequest = formatRequest(host, relURI, getOtherFields(clientRequest));
 		string defPort = "80";
 
+		cout << "Server Request: " << serverRequest << endl << endl;
 		// send request to server
 		memset(&host_info, 0, sizeof host_info);
 		host_info.ai_family = AF_UNSPEC;
@@ -183,9 +183,7 @@ void* runRequest( void* threadInfo ){
 		// get response
 		string serverResponse = recv_message(server_fdesc);
 		close(server_fdesc);
-		
-		cout << endl << endl << "Message: " << endl << serverResponse << endl << endl;
-		
+		cout << "server response: " << serverResponse << endl << endl;	
 		// send response to client
 		send_message(newSock_fdesc, serverResponse, serverResponse.length());
 		close(newSock_fdesc); //thread close socket
@@ -224,11 +222,21 @@ string getHost(string message){
 	// www.host.com
 	if(temp.find('/') != string::npos){
 		host.append(temp, 0, temp.find('/'));
-	}else{
+	}
+	else{
 		host = temp;
 	}
 
 	return host;
+}
+
+string getOtherFields(string message){
+	string ret = "";
+	if(message.find("User-Agent") != string::npos){
+		ret.append(message.begin()+message.find("User-Agent"), message.end());
+	}
+	else
+		return "\r\n\r\n";
 }
 
 string getRelativeURI(string message, string host){
@@ -246,10 +254,8 @@ string getRelativeURI(string message, string host){
 }
 
 // formats server request
-string formatRequest(string host, string relURI){
+string formatRequest(string host, string relURI, string otherLines){
 	string response = "GET " + relURI + " HTTP/1.0\r\n" +
-		"Host: " + host + ":80" + "\r\n" +
-		"Connection: close" + "\r\n\r\n";
 	return response;
 }
 
@@ -286,8 +292,7 @@ struct addrinfo* create_and_bind_socket(struct addrinfo *servinfo_list, int& soc
 }
 
 //proxy creates and socket and connects to remote server
-struct addrinfo* create_socket_and_connect(struct addrinfo *proxyinfo_list, int& sockfd)
-{
+struct addrinfo* create_socket_and_connect(struct addrinfo *proxyinfo_list, int& sockfd){
 	struct addrinfo* proxyinfo;
 	for(proxyinfo = proxyinfo_list; proxyinfo != NULL; proxyinfo = proxyinfo->ai_next)
 	{
@@ -328,6 +333,7 @@ void print_success_client_IP(struct sockaddr_storage &client_addr){
 //uses a loop to receive message from client, returns a message as string
 string recv_message(int sock_fd){
 	char buf[MAXDATASIZE];
+	memset(buf, '\0', MAXDATASIZE);
 	int num_bytes_recv = 0;
 	int checkbytes = 0;
 	string clientMessage = "";
@@ -356,7 +362,6 @@ string recv_message(int sock_fd){
 
 //sends message to client
 void send_message(int newfd, string msg, int msgLength){
-  msg.append("\r\n\r\n");
   int num_bytes_send = 0;
   char buf[msgLength];
   memcpy(buf, msg.c_str(), msgLength);
