@@ -16,10 +16,9 @@
 #include <signal.h>
 #include <string>
 #include <iostream>
-#include<sstream>
 using namespace std;
 
-#define MAXDATASIZE 1000 // max number of bytes we can get at once
+#define MAXDATASIZE 100 // max number of bytes we can get at once
 
 #define BACKLOG 30     // how many pending connections queue will hold
 
@@ -44,16 +43,17 @@ struct info{
 	struct addrinfo *host_info_list;
 };
 
-int main(int argNum, char* argValues[]){
-	int host_sock_fdesc, newSock_fdesc;// listen on sock_fd, new connection on new_fd, server fd
+int main(int argNum, char* argValues[])
+{
+	int host_sock_fdesc, newSock_fdesc, server_fdesc;  // listen on sock_fd, new connection on new_fd, server fd
 	struct addrinfo host_info, *host_info_list, *socket_bind; //*socket_bind_remote;
 	struct sockaddr_storage clientRequest_addr; // connector's address information
 	socklen_t sin_size;
 	struct sigaction sa;
 	int yes=1;
-	//char s[INET6_ADDRSTRLEN]; //didn't seem to be used
+	char s[INET6_ADDRSTRLEN];
 	int rv;
-	
+	struct info threadInfo;
 
 
 	if (argNum != 2){
@@ -102,7 +102,6 @@ int main(int argNum, char* argValues[]){
 	//accept
 	while(1)
 	{
-		struct info threadInfo;
 		sin_size = sizeof clientRequest_addr;
 		newSock_fdesc = accept(host_sock_fdesc, (struct sockaddr *)&clientRequest_addr, &sin_size);
 		if (newSock_fdesc == -1){
@@ -112,7 +111,7 @@ int main(int argNum, char* argValues[]){
 		//print_success_client_IP(clientRequest_addr);
 
 		threadInfo.newSock_fdesc = newSock_fdesc;
-		//threadInfo.server_fdesc = server_fdesc;
+		threadInfo.server_fdesc = server_fdesc;
 		threadInfo.host_info = host_info;
 		threadInfo.host_info_list = host_info_list;
 		
@@ -146,7 +145,7 @@ void* runRequest( void* threadInfo ){
 	clientRequest = recv_message(newSock_fdesc);
 	struct addrinfo *socket_bind_remote;
 	int rv;
-	 
+	
 	if(!validRequest(clientRequest)){
 		// send 500 error to client
 		send_message(newSock_fdesc, "Error 500", 9);
@@ -184,16 +183,10 @@ void* runRequest( void* threadInfo ){
 		// get response
 		string serverResponse = recv_message(server_fdesc);
 		close(server_fdesc);
+		cout << "server response: " << serverResponse << endl << endl;	
 		// send response to client
-		try {
-			cout << "Server Response\n" << serverResponse << endl;
-			send_message(newSock_fdesc, serverResponse, serverResponse.length());
-		} 
-		catch (...) {
-			cerr << "Browser Closed Connection! " << endl;
-			close(newSock_fdesc); //thread close socket
-			pthread_exit(NULL);
-		}		
+		send_message(newSock_fdesc, serverResponse, serverResponse.length());
+		close(newSock_fdesc); //thread close socket
 	}
 	
 	// Quit thread
@@ -264,8 +257,7 @@ string getRelativeURI(string message, string host){
 // formats server request
 string formatRequest(string host, string relURI, string otherLines){
 	string response = "GET " + relURI + " HTTP/1.0\r\n" +
-		"Host: " + host + "\r\n" + //otherLines;
-		"Connection: close" + "\r\n\r\n";
+		"Host: " + host + ":80" + "\r\n" + "\r\n\r\n";//otherLines;
 	return response;
 }
 
@@ -347,7 +339,6 @@ string recv_message(int sock_fd){
 	int num_bytes_recv = 0;
 	int checkbytes = 0;
 	string clientMessage = "";
-	
 	while((num_bytes_recv = recv(sock_fd, buf, MAXDATASIZE-1, 0)) > 0){
 		if (num_bytes_recv > 2){
 			checkbytes += num_bytes_recv;
@@ -374,10 +365,9 @@ string recv_message(int sock_fd){
 //sends message to client
 void send_message(int newfd, string msg, int msgLength){
   int num_bytes_send = 0;
-  char* buf = new char[msgLength];
+  char buf[msgLength];
   memcpy(buf, msg.c_str(), msgLength);
 
   while(num_bytes_send != msgLength)
 	  num_bytes_send = send(newfd, &buf, msgLength, 0);
-  delete[] buf;
 }
