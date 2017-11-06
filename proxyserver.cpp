@@ -17,6 +17,7 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <sstream>
 using namespace std;
 
 #define MAXDATASIZE 100 // max number of bytes we can get at once
@@ -333,33 +334,41 @@ void print_success_client_IP(struct sockaddr_storage &client_addr){
 }
 
 //uses a loop to receive message from client, returns a message as string
-string recv_message(int sock_fd){
-	char buf[MAXDATASIZE];
-	memset(buf, '\0', MAXDATASIZE);
-	int num_bytes_recv = 0;
-	int checkbytes = 0;
-	string clientMessage = "";
-	while((num_bytes_recv = recv(sock_fd, buf, MAXDATASIZE-1, 0)) > 0){
-		if (num_bytes_recv > 2){
-			checkbytes += num_bytes_recv;
-			buf[num_bytes_recv] = '\0';
-			clientMessage.append(buf);
+string recv_message(int sock_fd){	
+	stringstream ss;
+	int bufferSize = 1000; 
+	int totalSize = 0;
+	int bytesRecv;
+	char* buffer = new char[bufferSize];
+	char* buffPTR = buffer;
+	memset(buffPTR, '\0', bufferSize);
+	
+	// Handle communications
+	while (true) {
+		bytesRecv = recv(sock_fd, (void*) buffPTR, bufferSize, 0);
+		if (bytesRecv < 0) {
+			cerr << "Error occured while trying to receive data." << endl;	
+			close(sock_fd);
+			pthread_exit(NULL);	
+		} 
+		else if (bytesRecv == 0) {
+			break;
+		} 
+		else {
+			totalSize += bytesRecv;
+			for (int i = 0; i < bytesRecv; i++) {
+				ss << buffPTR[i];
+			}
+			if (totalSize > 4 ){
+				string tmpMsg = ss.str();
+				if (tmpMsg[tmpMsg.length()-4] == '\r'&& tmpMsg[tmpMsg.length()-3] == '\n'
+				&& tmpMsg[tmpMsg.length()-2] == '\r'&& tmpMsg[tmpMsg.length()-1] == '\n') {
+					break;
+				}
+			}
 		}
-		else 				//just end line characters means last message was blank line
-			break;
-		if (clientMessage[clientMessage.length()-4] == '\r'
-		&& clientMessage[clientMessage.length()-3] == '\n'
-		&& clientMessage[clientMessage.length()-2] == '\r'
-		&& clientMessage[clientMessage.length()-1] == '\n') 
-			break;
 	}
-
-	if (num_bytes_recv == -1){
-		perror("recv");
-		exit(1);
-	}
-
-	return clientMessage;
+	return ss.str();
 }
 
 //sends message to client
