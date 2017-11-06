@@ -9,12 +9,13 @@ telnet localhost <port>
 Trying 127.0.0.1...
 Connected to localhost.localdomain (127.0.0.1).
 Escape character is '^]'.
-GET http://www.cnn.com/ HTTP/1.0
+GET http://www.bbc.com/ HTTP/1.0
 
 Description:
 This program operates as a HTTP proxy server.
-Upon making a connection with the client, it reads the request.
-This request is then validated. If a request is invalid
+Upon making a connection with the client, a thread is created.
+The thread handles the processing of the client's request as follows:
+It reads the request. This request is then validated. If a request is invalid
 (not in absolute URI Form), the ValidRequest function will
 return false which triggers a 500 error message to the client
 If a request is valid, then the host and reformatted message
@@ -27,6 +28,7 @@ Greg Netzel
 -connect to requested remote host
 -send HTTP request from client to remote server
 -send response message from remote server to client
+-recv data function rework to handle embedded images
 
 Elizabeth Phippen
 - Request Validation
@@ -49,18 +51,27 @@ Design Choices:
 3) learns proxy server address and port
 4) prepare socket: creates and binds
 5) listen for connections
-6) when receives client request:
-      a) checks client message for "GET" request
-      b) if not a "GET" sends 500 error message to client
-      c) if "GET" request, parses the request for host and relative uri
-      d) constructs properly formatted server request from host and relative uri
-      e) learns remote server host address and port
-            -if not know, sends "Host Unknown" error to client and closes connection
-      f) prepares socket for remote server host: creates and binds
-      g) sends server request message ("GET", see d above) to remote server host
-      h) receives GET response from remote server host and sends message to client
-      i) closes connection to client
-      j) client terminal window displays message from proxy server
+6) when receives client request (while(1) loop):
+    -creates thread to handle the request from client
+    -thread sent to runClient()
+      a) thread is detatched
+      b) thread runs runRequest()
+        i) checks client message for "GET" request
+        ii) if not a "GET" sends 500 error message to client
+        iii) if "GET" request, parses the request for host and relative uri
+        iv) constructs properly formatted server request from host and relative uri
+      c) thread runs runClientRequest()
+        i) learns remote server host address and port
+              -if not known, sends "Host Unknown" error to client and closes connection
+        ii) prepares socket for remote server host: creates and binds
+        iii) sends server request message ("GET", see 6.b.iii above) to remote server host
+        iv) receives GET response from remote server host and sends message to client
+        v) closes connection to client
+        vi) returns string, message from server
+      d) runRequest() receives the string returned from runClientRequest
+        i) proxy sends message to client/browser
+    -message from server (sent by proxy) is displayed
+
 
 
 Strengths(+) & Weaknesses(-):
@@ -69,8 +80,11 @@ Strengths(+) & Weaknesses(-):
 +constructs properly-formatted HTTP request client from client if needed
 +protects client's identity; proxy identity is sent to remote server host,
     not client's, since proxy is sending request on client's behalf
++multithreaded, so can now handle multiple HTTP requests simultaneously
 
 -hard coded for HTTP/1.0
--phase is not multithreaded
 -cache not implemented, so will have to connect to remote server each time for
    repeated HTTP requests
+-pages are not loaded very quickly; we used pbs.org and bbc.com as our test sites
+    half of the images loaded in decent time (albeit still slowly),
+    but the remaining half were still being transferred and don't display
