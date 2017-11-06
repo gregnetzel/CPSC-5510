@@ -1,7 +1,7 @@
 // Homework 2 - Proxy Server
 // Class: 5510 Computer Networks
 // Greg Netzel, Elizabeth Phippen, Brandi Weekes
-#include <sstream>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -16,6 +16,7 @@
 #include <signal.h>
 #include <string>
 #include <iostream>
+#include <vector>
 using namespace std;
 
 #define MAXDATASIZE 100 // max number of bytes we can get at once
@@ -173,9 +174,10 @@ string runClientRequest(string clientRequest){
 
 	//send message to remote server
 	send_message(server_fdesc, serverRequest, serverRequest.length());
-	
 	// get response
 	string serverResponse = recv_message(server_fdesc);
+	//cout << serverRequest << endl;
+	//cout << serverResponse << endl;
 	close(server_fdesc);
 	return serverResponse;
 }
@@ -217,12 +219,24 @@ string getHost(string message){
 }
 
 string getOtherFields(string message){
-	string ret = "";
-	if(message.find("User-Agent") != string::npos){
-		ret.append(message.begin()+message.find("User-Agent"), message.end());
+	vector<string> lst;
+	int pos;
+	string del = "\r\n";
+	string ret = message.substr(message.find("User-Agent"));
+	while((pos =ret.find(del))!= string::npos){
+		lst.push_back(ret.substr(0, pos));
+		ret.erase(0, pos + del.length());
 	}
-	else
-		return "\r\n\r\n";
+	ret = "";
+	string it;
+	for (int i = 0; i < lst.size()-1; i++){
+		it = lst.at(i);
+		if (it.find("Connection") == string::npos ){//ignore connection
+			if (it.find("Accept-Encoding") == string::npos){ //ignore encoding
+				ret += it + "\r\n";
+			}
+		}
+	}
 	return ret;
 }
 
@@ -242,8 +256,8 @@ string getRelativeURI(string message, string host){
 
 // formats server request
 string formatRequest(string host, string relURI, string otherLines){
-	string response = "GET " + relURI + " HTTP/1.0\r\n" +
-		"Host: " + host + ":80" + "\r\n" + "\r\n\r\n";//otherLines;
+	string response = "GET " + relURI + " HTTP/1.0\r\n" + "Host: " + host + ":80" + "\r\n" + 
+	otherLines + "Connection: close\r\n\r\n";
 	return response;
 }
 
