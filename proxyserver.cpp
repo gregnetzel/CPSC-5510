@@ -42,8 +42,9 @@ void runRequest(int clientSocket);
 string runServerRequest(string clientReq);
 string runClientRequest(string clientRequest);
 
+//object to pass for multithreading purposes
 struct info{
-	int newSock_fdesc; 
+	int newSock_fdesc;
 };
 
 int main(int argNum, char* argValues[]){
@@ -99,6 +100,8 @@ int main(int argNum, char* argValues[]){
 			perror("accept");
 			return 1;
 		}
+
+		//thread handles the processing of client request
 		struct info* thrInfo = new info;
 		thrInfo->newSock_fdesc = newSock_fdesc;
 		pthread_t tid;
@@ -111,24 +114,36 @@ int main(int argNum, char* argValues[]){
 		}
 	}
 
-	close(host_sock_fdesc); 
+	close(host_sock_fdesc);
 	return 0;
 }
 
+/**
+ * handles thread -- detach, process, exit
+ * thread executes client request -- "GET"
+ * @param threadInfo holds client's socket file descriptor
+ */
 void* runClient( void* threadInfo ){
 	info* temp = (info*)threadInfo;
 	int clientSock_fdesc = temp->newSock_fdesc;
 	delete temp;
-	
+
 	pthread_detach(pthread_self());
-	
+
 	runRequest(clientSock_fdesc);
-	
-	close(clientSock_fdesc); 
-	
+
+	close(clientSock_fdesc);
+
 	pthread_exit(NULL);
 }
 
+/**
+ * handles the "GET" message from client by sending to respective methods:
+ * receives "GET" message from client, formats "GET" message, sends to server,
+ * upon receiving response from server, sends server response to client
+ * @param clientSocket socket the proxy thread will need to:
+ *        receive the "GET" request from and send the server response to
+ */
 void runRequest(int clientSocket){
 	// get client request
 	string clientRequest = recv_message(clientSocket);
@@ -142,6 +157,12 @@ void runRequest(int clientSocket){
 	send_message(clientSocket, serverResponse, serverResponse.length());
 }
 
+/**
+ * formats the client's "GET" request, creates socket and connects to server
+ * sends client request to server, receives servers response, closes server socket
+ * @param  clientRequest "GET" message from client
+ * @return               string is the response from server
+ */
 string runClientRequest(string clientRequest){
 	struct addrinfo host_info;
 	struct addrinfo *host_info_list;
@@ -152,13 +173,13 @@ string runClientRequest(string clientRequest){
 	string relURI = getRelativeURI(clientRequest, host);
 	string serverRequest = formatRequest(host, relURI, getOtherFields(clientRequest));
 	string defPort = "80";
-	
+
 	// send request to server
 	memset(&host_info, 0, sizeof host_info);
 	host_info.ai_family = AF_UNSPEC;
 	host_info.ai_socktype = SOCK_STREAM;
 
-	
+
 	if ((rv = getaddrinfo(host.c_str(), defPort.c_str(), &host_info, &host_info_list)) != 0){
 		//fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
 		return "Unknown Host\n";
@@ -219,6 +240,11 @@ string getHost(string message){
 	return host;
 }
 
+/**
+ * checks client's "GET" request for other headers requested from server
+ * @param  message client's "GET" request
+ * @return         string of remaining requests from client
+ */
 string getOtherFields(string message){
 	vector<string> lst;
 	int pos;
@@ -257,7 +283,7 @@ string getRelativeURI(string message, string host){
 
 // formats server request
 string formatRequest(string host, string relURI, string otherLines){
-	string response = "GET " + relURI + " HTTP/1.0\r\n" + "Host: " + host + ":80" + "\r\n" + 
+	string response = "GET " + relURI + " HTTP/1.0\r\n" + "Host: " + host + ":80" + "\r\n" +
 	+ "Connection: close\r\n" + otherLines + "\r\n\r\n";
 	return response;
 }
@@ -334,26 +360,26 @@ void print_success_client_IP(struct sockaddr_storage &client_addr){
 }
 
 //uses a loop to receive message from client, returns a message as string
-string recv_message(int sock_fd){	
+string recv_message(int sock_fd){
 	stringstream ss;
-	int bufferSize = 1000; 
+	int bufferSize = 1000;
 	int totalSize = 0;
 	int bytesRecv;
 	char* buffer = new char[bufferSize];
 	char* buffPTR = buffer;
 	memset(buffPTR, '\0', bufferSize);
-	
+
 	// Handle communications
 	while (true) {
 		bytesRecv = recv(sock_fd, (void*) buffPTR, bufferSize, 0);
 		if (bytesRecv < 0) {
-			cerr << "Error occured while trying to receive data." << endl;	
+			cerr << "Error occured while trying to receive data." << endl;
 			close(sock_fd);
-			pthread_exit(NULL);	
-		} 
+			pthread_exit(NULL);
+		}
 		else if (bytesRecv == 0) {
 			break;
-		} 
+		}
 		else {
 			totalSize += bytesRecv;
 			for (int i = 0; i < bytesRecv; i++) {
