@@ -229,7 +229,7 @@ string getOtherFields(string message){
 	}
 	ret = "";
 	string it;
-	for (int i = 0; i < lst.size()-1; i++){
+	for (int i = 0; i < lst.size(); i++){
 		it = lst.at(i);
 		if (it.find("Connection") == string::npos ){//ignore connection
 			if (it.find("Accept-Encoding") == string::npos){ //ignore encoding
@@ -257,7 +257,7 @@ string getRelativeURI(string message, string host){
 // formats server request
 string formatRequest(string host, string relURI, string otherLines){
 	string response = "GET " + relURI + " HTTP/1.0\r\n" + "Host: " + host + ":80" + "\r\n" + 
-	otherLines + "Connection: close\r\n\r\n";
+	+ "Connection: close\r\n" + otherLines + "\r\n\r\n";
 	return response;
 }
 
