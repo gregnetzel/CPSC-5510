@@ -1,7 +1,7 @@
 // Homework 2 - Proxy Server
 // Class: 5510 Computer Networks
 // Greg Netzel, Elizabeth Phippen, Brandi Weekes
-
+#include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -23,7 +23,7 @@ using namespace std;
 #define BACKLOG 30     // how many pending connections queue will hold
 
 
-void* runRequest(void* threadInfo);
+void* runClient(void* threadInfo);
 bool validRequest(string message);
 string getHost(string message);
 string getRelativeURI(string message, string host);
@@ -36,16 +36,16 @@ void sigchld_handler(int s);
 void print_success_client_IP(struct sockaddr_storage &client_addr);
 string recv_message(int sock_fd);
 void send_message(int newfd, string msg, int msgLength);
+void runRequest(int clientSocket);
+string runServerRequest(string clientReq);
+string runClientRequest(string clientRequest);
+
 struct info{
 	int newSock_fdesc; 
-	int server_fdesc;
-	struct addrinfo host_info;
-	struct addrinfo *host_info_list;
 };
 
-int main(int argNum, char* argValues[])
-{
-	int host_sock_fdesc, newSock_fdesc, server_fdesc;  // listen on sock_fd, new connection on new_fd, server fd
+int main(int argNum, char* argValues[]){
+	int host_sock_fdesc, newSock_fdesc;//, server_fdesc;  // listen on sock_fd, new connection on new_fd, server fd
 	struct addrinfo host_info, *host_info_list, *socket_bind; //*socket_bind_remote;
 	struct sockaddr_storage clientRequest_addr; // connector's address information
 	socklen_t sin_size;
@@ -88,35 +88,19 @@ int main(int argNum, char* argValues[])
 		exit(1);
 	}
 
-	// reap all dead processes
-	sa.sa_handler = sigchld_handler;
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = SA_RESTART;
-	if (sigaction(SIGCHLD, &sa, NULL) == -1){
-		perror("sigaction");
-		exit(1);
-	}
-
-	//printf("server: waiting for connections...\n");
 
 	//accept
-	while(1)
-	{
+	while(1){
 		sin_size = sizeof clientRequest_addr;
 		newSock_fdesc = accept(host_sock_fdesc, (struct sockaddr *)&clientRequest_addr, &sin_size);
 		if (newSock_fdesc == -1){
 			perror("accept");
 			return 1;
 		}
-		//print_success_client_IP(clientRequest_addr);
-
-		threadInfo.newSock_fdesc = newSock_fdesc;
-		threadInfo.server_fdesc = server_fdesc;
-		threadInfo.host_info = host_info;
-		threadInfo.host_info_list = host_info_list;
-		
+		struct info* thrInfo = new info;
+		thrInfo->newSock_fdesc = newSock_fdesc;
 		pthread_t tid;
-		int threadStatus = pthread_create(&tid, NULL, runRequest, (void*)&threadInfo);
+		int threadStatus = pthread_create(&tid, NULL, runClient, (void*)thrInfo);
 		if (threadStatus != 0){
 		  // Failed to create child thread
 		  cerr << "Failed to create child process." << endl;
@@ -129,70 +113,72 @@ int main(int argNum, char* argValues[])
 	return 0;
 }
 
-void* runRequest( void* threadInfo ){
-
-	info* temp = (info*) threadInfo;
-	int newSock_fdesc = temp -> newSock_fdesc;
-	int server_fdesc = temp -> server_fdesc;
-	struct addrinfo host_info = temp -> host_info;
-	struct addrinfo *host_info_list = temp -> host_info_list;
-
-	// Detach Thread to ensure that resources are deallocated on return.
+void* runClient( void* threadInfo ){
+	info* temp = (info*)threadInfo;
+	int clientSock_fdesc = temp->newSock_fdesc;
+	delete temp;
+	
 	pthread_detach(pthread_self());
 	
-	// get client request
-	string clientRequest = "";
-	clientRequest = recv_message(newSock_fdesc);
-	struct addrinfo *socket_bind_remote;
-	int rv;
+	runRequest(clientSock_fdesc);
 	
-	if(!validRequest(clientRequest)){
-		// send 500 error to client
-		send_message(newSock_fdesc, "Error 500", 9);
-	}
-	else{
-		string host = getHost(clientRequest);
-		string relURI = getRelativeURI(clientRequest, host);
-		string serverRequest = formatRequest(host, relURI, getOtherFields(clientRequest));
-		string defPort = "80";
-
-		cout << "Server Request: " << serverRequest << endl << endl;
-		// send request to server
-		memset(&host_info, 0, sizeof host_info);
-		host_info.ai_family = AF_UNSPEC;
-		host_info.ai_socktype = SOCK_STREAM;
-
-		if ((rv = getaddrinfo(host.c_str(), defPort.c_str(), &host_info, &host_info_list)) != 0){
-			fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-			send_message(newSock_fdesc, "Unknown Host\n", 13);
-			return NULL;
-		}
-
-		//create socket and connect to remote server
-		socket_bind_remote = create_socket_and_connect(host_info_list, server_fdesc);
-
-		if (socket_bind_remote == NULL){
-			fprintf(stderr,"Could not connect\n");
-			exit(1);
-		}
-		freeaddrinfo(host_info_list);
-
-		//send message to remote server
-		send_message(server_fdesc, serverRequest, serverRequest.length());
-
-		// get response
-		string serverResponse = recv_message(server_fdesc);
-		close(server_fdesc);
-		cout << "server response: " << serverResponse << endl << endl;	
-		// send response to client
-		send_message(newSock_fdesc, serverResponse, serverResponse.length());
-		close(newSock_fdesc); //thread close socket
-	}
+	close(clientSock_fdesc); 
 	
-	// Quit thread
 	pthread_exit(NULL);
 }
 
+void runRequest(int clientSocket){
+	// get client request
+	string clientRequest = recv_message(clientSocket);
+	string serverResponse;
+	if(!validRequest(clientRequest)){
+		send_message(clientSocket, "Error 500", 9);
+	}
+	else{
+		serverResponse = runClientRequest(clientRequest);
+	}
+	send_message(clientSocket, serverResponse, serverResponse.length());
+}
+
+string runClientRequest(string clientRequest){
+	struct addrinfo host_info;
+	struct addrinfo *host_info_list;
+	struct addrinfo *socket_bind_remote;
+	int rv;
+	int server_fdesc;
+	string host = getHost(clientRequest);
+	string relURI = getRelativeURI(clientRequest, host);
+	string serverRequest = formatRequest(host, relURI, getOtherFields(clientRequest));
+	string defPort = "80";
+	
+	// send request to server
+	memset(&host_info, 0, sizeof host_info);
+	host_info.ai_family = AF_UNSPEC;
+	host_info.ai_socktype = SOCK_STREAM;
+
+	
+	if ((rv = getaddrinfo(host.c_str(), defPort.c_str(), &host_info, &host_info_list)) != 0){
+		//fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+		return "Unknown Host\n";
+	}
+
+	//create socket and connect to remote server
+	socket_bind_remote = create_socket_and_connect(host_info_list, server_fdesc);
+
+	if (socket_bind_remote == NULL){
+		fprintf(stderr,"Could not connect\n");
+		exit(1);
+	}
+	freeaddrinfo(host_info_list);
+
+	//send message to remote server
+	send_message(server_fdesc, serverRequest, serverRequest.length());
+	
+	// get response
+	string serverResponse = recv_message(server_fdesc);
+	close(server_fdesc);
+	return serverResponse;
+}
 
 // check for valid request
 // GET AbsoluteURI HTTP/1.0
